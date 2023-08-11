@@ -6,6 +6,16 @@ from gpiozero import PWMOutputDevice
 from gpiozero import DigitalOutputDevice  
 from time import sleep, time
 import RPi.GPIO as GPIO
+# create a Socket.IO server
+import socketio
+# create a Socket.IO server
+from aiohttp import web
+
+sio = socketio.AsyncServer(async_mode='aiohttp')
+app = web.Application()
+sio.attach(app)
+
+
 #///////////////// Define Motor Driver GPIO Pins /////////////////  
 # Motor A, Left Side GPIO CONSTANTS  
 PWM_DRIVE_LEFT = 21
@@ -111,7 +121,31 @@ def main():
     # reverseTurnRight()  	
     # sleep(5)  	
     allStop()        
-if __name__ == "__main__":      
-    """ This is executed when run from the command line """      
+@sio.event
+async def my_event(sid, data):
+    print('my event', data)
     main()
+    await sio.emit('message', {'data': 'this is a message 2'})
+
+
+@sio.on('my custom event')
+async def another_event(sid, data):
+    print('custom event', data)
+    pass
+
+
+@sio.event
+async def connect(sid, environ, auth):
+    print('connect ', sid)
+
+
+@sio.event
+async def disconnect(sid):
+    print('disconnect ', sid)
+
+
+if __name__ == '__main__':
+    # main()
+    web.run_app(app)
+
 
