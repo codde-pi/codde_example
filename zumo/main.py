@@ -1,72 +1,49 @@
-"""    File: skidsteer_two_pwm_test.py     This code will test Raspberry Pi GPIO PWM on four GPIO  pins. The code test ran with L298N H-Bridge driver module connected.     Website:	www.bluetin.io  Date:		27/11/2017  """     
-__author__ = "Mark Heywood"  
-__version__ = "0.1.0"  
-__license__ = "MIT"     
+"""    
+This code will control Raspberry Pi GPIO PWM on four GPIO pins thanks to CODDE Pi Framework. 
+The code test ran with L298N H-Bridge driver module connected.
+The virtual controller sending instructions run on a mobile phone with CODDE Pi App.
+
+Website:	www.codde-pi.com 
+Date:		24/04/20224 
+"""     
 from gpiozero import PWMOutputDevice  
 from gpiozero import DigitalOutputDevice  
 from time import sleep, time
 import RPi.GPIO as GPIO
-# create a Socket.IO server
-import socketio
-# create a Socket.IO server
-from aiohttp import web
-
-sio = socketio.AsyncServer(async_mode='aiohttp')
-app = web.Application()
-sio.attach(app)
-
+import subprocess
+import codde_protocol as cp
+import time
 
 #///////////////// Define Motor Driver GPIO Pins /////////////////  
+
 # Motor A, Left Side GPIO CONSTANTS  
 PWM_DRIVE_LEFT = 21
 # ENA - H-Bridge enable pin  
-FORWARD_LEFT_PIN = 26	
+REVERSE_LEFT_PIN = 20	
 # IN1 - Forward Drive  
-REVERSE_LEFT_PIN = 19	
+FORWARD_LEFT_PIN = 16	
 # IN2 - Reverse Drive  # Motor B, Right Side GPIO CONSTANTS  
-PWM_DRIVE_RIGHT = 5		
+PWM_DRIVE_RIGHT = 15 # previously 18		
 # ENB - H-Bridge enable pin  
-FORWARD_RIGHT_PIN = 13	
+REVERSE_RIGHT_PIN = 12	
 # IN1 - Forward Drive  
-REVERSE_RIGHT_PIN = 6	
+FORWARD_RIGHT_PIN = 23	
 # IN2 - Reverse Drive     
 # Initialise objects for H-Bridge GPIO PWM pins  
 # Set initial duty cycle to 0 and frequency to 1000  
-driveLeft = PWMOutputDevice(PWM_DRIVE_LEFT, True, 0, 1000)  
-driveRight = PWMOutputDevice(PWM_DRIVE_RIGHT, True, 0, 1000)     
+driveLeft = PWMOutputDevice(pin=PWM_DRIVE_LEFT, active_high=True, initial_value=0, frequency=1000)  
+driveRight = PWMOutputDevice(pin=PWM_DRIVE_RIGHT, active_high=True, initial_value=0, frequency=1000) 
 # Initialise objects for H-Bridge digital GPIO pins  
 forwardLeft = DigitalOutputDevice(FORWARD_LEFT_PIN)  
 reverseLeft = DigitalOutputDevice(REVERSE_LEFT_PIN)  
 forwardRight = DigitalOutputDevice(FORWARD_RIGHT_PIN)  
 reverseRight = DigitalOutputDevice(REVERSE_RIGHT_PIN)     
-interlock = DigitalOutputDevice(20)
-#// ULTRASONIC
-"""GPIO.setmode(GPIO.BCM)
-TRIG = 23
-ECHO = 24
-print('distance measurement')
-GPIO.setup(TRIG, GPIO.OUT)
-GPIO.setup(ECHO, GPIO.IN)
-GPIO.output(TRIG, False)
-print("waiting for sensor to settle")
-sleep(2)
+interlock = DigitalOutputDevice(24)
 
-GPIO.output(TRIG, True)
-sleep(0.00001)
-GPIO.output(TRIG, False)
+# Start WebSocket server
+server = cp.ComSocketServer('192.168.0.40:12345')
 
-while GPIO.input(ECHO) == 0:
-    pulse_start = time()
-
-while GPIO.input(ECHO) == 1:
-    pulse_end = time()
-
-pulse_duration = pulse_end - pulse_start
-distance = pulse_duration * 17150
-distance = round(distance, 2)
-
-print('Distance: ', ditance, 'cm')
-GPIO.cleanup()"""
+# //////////////////////////////// Common methods ////////////////////////////
 
 def allStop():  	
     interlock.value = False
@@ -76,7 +53,8 @@ def allStop():
     reverseRight.value = False  	
     driveLeft.value = 0  	
     driveRight.value = 0     
-def forwardDrive():  	
+
+def forwardDrive():
     interlock.value = True
     forwardLeft.value = True  	
     reverseLeft.value = False  
@@ -84,13 +62,16 @@ def forwardDrive():
     reverseRight.value = False  	
     driveLeft.value = 1.0  	
     driveRight.value = 1.0     
-def reverseDrive():  	
+
+def reverseDrive():
+    interlock.value = True
     forwardLeft.value = False  	
     reverseLeft.value = True  	
     forwardRight.value = False  	
     reverseRight.value = True  	
     driveLeft.value = 1.0  	
     driveRight.value = 1.0     
+
 def spinLeft():  	
     forwardLeft.value = False  	
     reverseLeft.value = True  	
@@ -98,6 +79,7 @@ def spinLeft():
     reverseRight.value = False  	
     driveLeft.value = 1.0  	
     driveRight.value = 1.0     
+
 def SpinRight():  	
     forwardLeft.value = True  	
     reverseLeft.value = False  	
@@ -105,47 +87,66 @@ def SpinRight():
     reverseRight.value = True  	
     driveLeft.value = 1.0  	
     driveRight.value = 1.0     
+
 def forwardTurnLeft():  	
+    interlock.value = True
     forwardLeft.value = True  	
     reverseLeft.value = False  	
     forwardRight.value = True  	
     reverseRight.value = False  	
     driveLeft.value = 0.2  	
     driveRight.value = 0.8     
-# def forwardTurnRight():  	forwardLeft.value = True  	reverseLeft.value = False  	forwardRight.value = True  	reverseRight.value = False  	driveLeft.value = 0.8  	driveRight.value = 0.2     def reverseTurnLeft():  	forwardLeft.value = False  	reverseLeft.value = True  	forwardRight.value = False  	reverseRight.value = True  	driveLeft.value = 0.2  	driveRight.value = 0.8     def reverseTurnRight():  	forwardLeft.value = False  	reverseLeft.value = True  	forwardRight.value = False  	reverseRight.value = True  	driveLeft.value = 0.8  	driveRight.value = 0.2     def main():  	allStop()  	forwardDrive()  	sleep(5)  	reverseDrive()  	sleep(5)  	spinLeft()  	sleep(5)  	SpinRight()  	sleep(5)  	forwardTurnLeft()  	sleep(5)  	forwardTurnRight()  	sleep(5)  	
-def main():
+
+def forwardTurnRight():
+    interlock.value = True
+    forwardLeft.value = True  
+    reverseLeft.value = False
+    forwardRight.value = True 
+    reverseRight.value = False  	
+    driveLeft.value = 0.8
+    driveRight.value = 0.2
+
+def camera():
+    subprocess.Popen(['mjpg_streamer', '-i', '"input_uvc.so -r 640x480 -f 10 -d /dev/video0 -y"', '-o', '"output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www”'])
+
+# /////////////////// Handle CODDE Protocol events ////////////////////////////
+
+def press_button_1(*args):
+    widget: cp.ToggleButton = args[0]
+    print('press' if widget.pressed else 'release')
     allStop()
-    forwardDrive()
-    # forwardTurnLeft()  	
-    sleep(2)  	
-    # reverseTurnRight()  	
-    # sleep(5)  	
-    allStop()        
-@sio.event
-async def my_event(sid, data):
-    print('my event', data)
-    main()
-    await sio.emit('message', {'data': 'this is a message 2'})
+    if widget.pressed:
+        forwardDrive()
 
-
-@sio.on('my custom event')
-async def another_event(sid, data):
-    print('custom event', data)
-    pass
-
-
-@sio.event
-async def connect(sid, environ, auth):
-    print('connect ', sid)
-
-
-@sio.event
-async def disconnect(sid):
-    print('disconnect ', sid)
+def directional_button_3(*args):
+    widget = args[0]
+    print('direction', widget.direction)
+    if widget.direction == 1:
+        forwardDrive()
+    elif widget.direction == 2:
+        forwardTurnRight()
+    elif widget.direction == 3:
+        reverseDrive()
+    elif widget.direction == 4:
+        forwardTurnLeft()
+    else:
+        allStop()
 
 
 if __name__ == '__main__':
-    # main()
-    web.run_app(app)
-
+    camera()
+    print('open server...')
+    server.open()
+    server.on(1, "PressButton", press_button_1)
+    server.on(3, "DirectionalButton", directional_button_3)
+    # server.callback(1, cp.ServerStatus.Idle, cp.ConfirmResult(True)) 
+    try:
+        server.serve()
+        while True:
+            sleep(1)
+    except KeyboardInterrupt:
+        print("Oh! you pressed CTRL + C.")
+        print("Program interrupted.")
+    finally:
+        server.close()
 
